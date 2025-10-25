@@ -1,0 +1,153 @@
+
+"""
+Team C - Task 3: ML Model Research (Production Script)
+------------------------------------------------------------
+Objective:
+  - Compare multiple Hugging Face NER models
+  - Evaluate them on a small labeled dataset
+  - Detect temporal expressions in emails
+  - Generate structured "task" JSONs from NER + date extraction
+------------------------------------------------------------
+Usage:
+  $ python main.py
+Output:
+  - ner_evaluation.csv
+  - structured_tasks.csv
+------------------------------------------------------------
+"""
+
+import pandas as pd
+import json
+import re
+import dateparser.search
+from transformers import pipeline
+
+# ------------------------------------------------------------
+# 1. Configuration
+# ------------------------------------------------------------
+MODELS_TO_TEST = [
+    "dslim/bert-base-NER",
+    "Davlan/bert-base-multilingual-cased-ner-hrl",
+    "Jean-Baptiste/camembert-ner",
+]
+
+SAMPLE_EMAILS = [
+    "Meeting with John Doe from OpenAI on Friday at 2pm.",
+    "Call scheduled with Alice at Microsoft next Monday morning.",
+    "Reunión con Pedro Gómez el próximo martes en las oficinas de Google.",
+    "La presentación con IBM se pospuso al viernes.",
+    "Lunch with Dr. Emily Smith (Stanford University) tomorrow at 1:30pm.",
+    "Please confirm your attendance to the workshop on 12/10/2025.",
+]
+
+GROUND_TRUTH = [
+    {"text": "Meeting with John Doe from OpenAI on Friday at 2pm.",
+     "PER": ["John Doe"], "ORG": ["OpenAI"]},
+    {"text": "Lunch with Dr. Emily Smith (Stanford University) tomorrow.",
+     "PER": ["Emily Smith"], "ORG": ["Stanford University"]},
+    {"text": "Reunión con Pedro Gómez en Google el próximo martes.",
+     "PER": ["Pedro Gómez"], "ORG": ["Google"]}
+]
+
+# ------------------------------------------------------------
+# 2. Utility Functions
+# ------------------------------------------------------------
+
+def extract_dates(text):
+    """Extract temporal expressions using dateparser.search"""
+    found = dateparser.search.search_dates(text)
+    if not found:
+        return []
+    return [{"text": t, "parsed_date": d.isoformat()} for t, d in found]
+
+
+def evaluate_model(model_name, nlp, ground_truth):
+    """Compute simple precision/recall/F1 metrics"""
+    total, correct, possible = 0, 0, 0
+    for item in ground_truth:
+        ents = nlp(item["text"])
+        pred_per = [e["word"] for e in ents if e["entity_group"] == "PER"]
+        pred_org = [e["word"] for e in ents if e["entity_group"] == "ORG"]
+
+        gold = set(item["PER"] + item["ORG"])
+        pred = set(pred_per + pred_org)
+
+        correct += len(gold & pred)
+        total += len(pred)
+        possible += len(gold)
+    precision = correct / total if total else 0
+    recall = correct / possible if possible else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+    return round(precision, 2), round(recall, 2), round(f1, 2)
+
+
+def generate_structured_task(text, nlp):
+    """Generate structured task object from email text"""
+    ents = nlp(text)
+    people = [e["word"] for e in ents if e["entity_group"] == "PER"]
+    orgs = [e["word"] for e in ents if e["entity_group"] == "ORG"]
+    dates = [d["text"] for d in extract_dates(text)]
+
+    task = {
+        "email_text": text,
+        "people": people or None,
+        "organizations": orgs or None,
+        "dates_detected": dates or None
+    }
+
+    summary_parts = []
+    if people:
+        summary_parts.append(f"with {', '.join(people)}")
+    if orgs:
+        summary_parts.append(f"from {', '.join(orgs)}")
+    if dates:
+        summary_parts.append(f"on {', '.join(dates)}")
+
+    task["suggested_task"] = (
+        f"Schedule meeting {' '.join(summary_parts)}."
+        if summary_parts else "No clear task detected."
+    )
+    return task
+
+
+# ------------------------------------------------------------
+# 3. Main Execution
+# ------------------------------------------------------------
+def main():
+    evaluation_results = []
+
+    print("\n=== Starting NER Model Evaluation ===\n")
+
+    for model_name in MODELS_TO_TEST:
+        try:
+            print(f"Loading model: {model_name}")
+            nlp = pipeline("ner", model=model_name, aggregation_strategy="simple")
+        except Exception as e:
+            print(f" Could not load {model_name}: {e}")
+            continue
+
+        p, r, f1 = evaluate_model(model_name, nlp, GROUND_TRUTH)
+        evaluation_results.append({"model": model_name, "precision": p, "recall": r, "f1": f1})
+        print(f"→ Precision: {p:.2f} | Recall: {r:.2f} | F1: {f1:.2f}\n")
+
+    df_eval = pd.DataFrame(evaluation_results)
+    df_eval.to_csv("ner_evaluation.csv", index=False)
+    print(" NER evaluation saved as ner_evaluation.csv\n")
+
+    # Pick best model by F1
+    best_model_row = df_eval.loc[df_eval["f1"].idxmax()]
+    best_model = best_model_row["model"]
+    print(f" Best model selected: {best_model}\n")
+
+    nlp_best = pipeline("ner", model=best_model, aggregation_strategy="simple")
+
+    structured_tasks = [generate_structured_task(text, nlp_best) for text in SAMPLE_EMAILS]
+    df_tasks = pd.DataFrame(structured_tasks)
+    df_tasks.to_csv("structured_tasks.csv", index=False)
+
+    print(" Structured task file saved as structured_tasks.csv")
+    print(df_tasks)
+
+
+if __name__ == "__main__":
+    main()
