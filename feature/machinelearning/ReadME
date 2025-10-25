@@ -1,0 +1,24 @@
+### Sprint 1 - Foundations & Core APIs (Sep 25 - Oct 19)
+
+---
+
+##  Objective
+Explore and evaluate NLP models for **Named Entity Recognition (NER)** on raw email text to extract:
+- **People names (PER)**
+- **Organizations (ORG)**
+- **Temporal expressions (dates/times)**
+
+This will form the foundation for integrating automatic task creation (Google Calendar / Todoist) in future sprints.
+
+---
+
+##  Features
+
+ Compare multiple Hugging Face NER models
+ Evaluate with a small labeled ground truth (precision / recall / F1)
+ Test multilingual (English + Spanish) examples
+ Detect temporal expressions using `dateparser.search`
+ Generate structured task outputs ready for API integration
+
+---
+ 
