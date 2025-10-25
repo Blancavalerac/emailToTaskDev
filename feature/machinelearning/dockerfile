@@ -1,0 +1,18 @@
+# Base lightweight image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy code
+COPY main.py .
+
+# Optional: download base model in build stage to avoid cold start
+RUN python -c "from transformers import pipeline; pipeline('ner', model='dslim/bert-base-NER', aggregation_strategy='simple')"
+
+# Command to run script
+CMD ["python", "main.py"]
