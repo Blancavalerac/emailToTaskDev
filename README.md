@@ -2,6 +2,14 @@
 
 A platform that automatically converts Gmail emails into Google Tasks and Google Calendar events. Uses AI-powered classification to intelligently decide which emails should become tasks and automatically creates calendar events for meetings. Built as part of a group project for an assignment at Columbia University.
 
+**Team members**
+Gautam Agarwal ga272
+Blanca Valera bv2358
+Ron Zimmermann rjz2117
+Navinashok Swaminathan ns3886
+Emanuela Romano er2788
+Diya Roongta dr3281
+
 **Tech Stack**: TypeScript/React frontend with Vite, Python/Flask backend
 
 ## ✨ Features
